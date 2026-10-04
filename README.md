@@ -1,3 +1,9 @@
+بِسْمِ اللَّهِ الرَّحْمَنِ الرَّحِيمِ
+
+**Bismillahirrahmanirrahim.**
+
+---
+
 # TEDVİN
 
 **Türkçe kodlama için tasarlanmış bir programlama dili ve geliştirme ortamı.**
@@ -6,13 +12,144 @@
 
 ![Status](https://img.shields.io/badge/status-active%20development-C78558)
 ![Compiler](https://img.shields.io/badge/compiler-Rust-0E1826?logo=rust)
-![Tests](https://img.shields.io/badge/verified%20tests-627%20passing-2E7D32)
+![Canonical Tests](https://img.shields.io/badge/canonical%20baseline-1529%20passing-2E7D32)
 ![Stability](https://img.shields.io/badge/stability-experimental-39495C)
 ![Source](https://img.shields.io/badge/compiler%20source-private-0E1826)
 
 > **Türkçe kod. Gerçek compiler semantiği. Uzun vadeli native toolchain hedefi.**
 
 ---
+
+# Geliştirme Güncellemesi — 4 Ekim 2026
+
+*Development Update — October 4, 2026*
+
+TEDVİN bugün **memory & resource safety** katmanında yeni bir entegrasyon eşiğine ulaştı.
+
+Bu güncelleme iki ayrı doğruluk seviyesini bilinçli olarak ayırır:
+
+- **Canonical / accepted temel:** kaynaklarda fiziksel olarak doğrulanmış son canonical baseline; C14 memory/resource safety kısmi implementasyonu ile birlikte **1529/1529 PASS** workspace tabanıdır.
+- **4 Ekim geliştirme ilerlemesi:** bugün fiziksel TEMP kabul zincirinde gerçek kaynaktan üretilen `DosyaTutamacı` değerinin ownership, liveness, lexical/control-flow exit ve deterministic finalization planlama katmanları boyunca taşındığı entegrasyon testleri ilerletildi.
+- **Şu anda araştırılan:** `Observe` işlemlerinden gerçek source/HIR kimliği kullanılarak internal ephemeral borrow / region kanıtı türetmenin güvenli yolu. Bu çalışma read-only audit aşamasındadır; tamamlanmış canonical özellik olarak sunulmaz.
+
+## Bugünün önemli ilerlemesi
+
+Compiler güvenliği artık yalnız “bir değer taşındı mı?” sorusuna bakmıyor. Bugünkü entegrasyon çizgisinde gerçek bir resource üreticisinin compiler içindeki yaşam döngüsü uçtan uca sınanıyor:
+
+```text
+DosyaYetkisi.aç()
+        ↓
+exact DosyaTutamacı nominal identity
+        ↓
+ownership classification
+        ↓
+move / liveness facts
+        ↓
+lexical & control-flow exit facts
+        ↓
+deterministic finalization planning
+        ↓
+exactly-once obligation
+```
+
+Bu zincirde doğrulanan kritik ilke şudur:
+
+> Bir resource başka bir binding'e veya return yoluna taşındığında eski binding artık aynı resource için ikinci bir finalization yükümlülüğü üretmemelidir.
+
+Bugünkü TEMP entegrasyon testleri ayrıca nested block fallthrough, `kır` ve `sürdür` gibi lexical/control-flow çıkışlarında bir kez planlanan resource finalization'ının daha sonra function-exit aşamasında tekrar planlanmamasını sınar.
+
+Bu, **double-finalization yolunu compiler seviyesinde fail-closed biçimde engelleme** yönünde önemli bir adımdır.
+
+## Canonical olarak zaten geçilmiş katmanlar
+
+TEDVİN'in public roadmap'inde daha önce “gelecek” olarak görünen aşağıdaki compiler katmanları artık tarihsel roadmap öğesi olarak değil, accepted gelişim çizgisinin parçası olarak ele alınmalıdır:
+
+```text
+Traits / Bounds / Methods
+        ↓
+Modules / Imports / Visibility
+        ↓
+Generalized Effect Registry
+        ↓
+Capability Checking
+        ↓
+Memory / Resource Safety  ← NOW
+```
+
+C14'ün canonical accepted temelinde şu semantic parçalar bulunmaktadır:
+
+- `VALUE`
+- `AFFINE_AUTHORITY`
+- `AFFINE_LINEAR_RESOURCE`
+- `Observe`
+- `Exclusive`
+- `Consume`
+- move / liveness enforcement
+- ephemeral Observe/Consume conflict checking
+- affine fan-out kontrolü
+- generic ownership/copyability fact taşıma
+- local generic hidden-copyability enforcement
+
+C14 **henüz COMPLETE/CLOSED değildir**.
+
+## Şu anki araştırma sınırı
+
+Bugünkü bir sonraki read-only audit, mevcut capability operation ve HIR method-call kimliklerinin internal ephemeral borrow origin ve lexical region kanıtı üretmek için yeterli olup olmadığını inceliyor.
+
+Amaç yeni syntax icat etmek değildir.
+
+Şu anda **eklenmeyen** şeyler:
+
+```text
+&
+ref
+borrow
+move
+clone
+lifetime syntax
+region syntax
+first-class source reference values
+```
+
+Araştırılan soru daha küçüktür:
+
+> Mevcut semantic identity ve exact receiver `SymbolId`, compiler'ın internal borrow/region kanıtını yeni kaynak-dil sözdizimi eklemeden güvenli ve deterministik biçimde kurmasına yeterli mi?
+
+## Bugünkü sınır — neyi iddia etmiyoruz?
+
+4 Ekim ilerlemesi şu anlama **gelmez**:
+
+- native runtime cleanup/destructor tamamlandı,
+- gerçek OS file I/O runtime'ı tamamlandı,
+- resource cleanup lowering hazır,
+- C14 tamamlandı,
+- concurrency başladı,
+- MIR başladı,
+- LLVM backend hazır,
+- native runtime hazır.
+
+Bugünkü ilerleme **compiler-level semantic integration ve TEMP acceptance** düzeyindedir.
+
+## İlerleme çizgisi
+
+```text
+Type System
+    ↓
+Effects
+    ↓
+Capabilities
+    ↓
+Ownership / Resource Safety  ← NOW
+    ↓
+Concurrency
+    ↓
+MIR
+    ↓
+Native
+```
+
+---
+
 
 ## TEDVİN nedir?
 
@@ -185,9 +322,9 @@ Capability
 → Bu eylemi hangi sınırlar içinde yapmasına izin var?
 ```
 
-Effect sistemi bugün önemli ölçüde gerçek semantic yüzeye sahiptir.
+Effect sistemi gerçek semantic yüzeye sahiptir.
 
-Capability enforcement ise daha sonraki compiler aşamasıdır. Bu ayrım bilinçlidir; compiler'ın “eylem” ile “izin” kavramlarını tek bir belirsiz mekanizmada birleştirmemesi hedeflenir.
+Capability checking de accepted compiler gelişim çizgisinin parçasıdır. Effect ile capability ayrımı korunur: compiler'ın “eylem” ile “izin” kavramlarını tek bir belirsiz mekanizmada birleştirmemesi hedeflenir. Daha geniş operational capability ve runtime enforcement alanları ise ayrı gelecek katmanlarıdır.
 
 ## 7. Küçük ve açıklanabilir core
 
@@ -220,7 +357,7 @@ Mevcut private geliştirme snapshot'ında:
 
 | Doğrulama | Durum |
 |---|---:|
-| Compiler unit tests | **627 PASS** |
+| Canonical workspace baseline | **1529/1529 PASS** |
 | Lexer fixture suite | **PASS** |
 | Resolver fixture suite | **PASS** |
 | Bootstrap compiler implementation | **Rust** |
@@ -262,7 +399,7 @@ Bugün doğrulanmış semantic yüzey aşağıdaki alanları kapsar:
 - recursive effect inference
 - public effect-contract enforcement
 
-> Bu liste bir stable-release iddiası değildir. Bugünkü doğrulanmış compiler geliştirme yüzeyini gösterir.
+> Bu liste bir stable-release iddiası değildir. Canonical kabul zincirinde fiziksel olarak doğrulanmış compiler yüzeyini gösterir; 4 Ekim tarihli TEMP geliştirme ilerlemesi yukarıdaki tarihli güncellemede ayrıca ayrılmıştır.
 
 ---
 
@@ -287,7 +424,7 @@ flowchart TD
     M --> N["RUNTIME"]
 ```
 
-**Bu şema hem mevcut hem gelecekteki katmanları gösterir.** Capability enforcement, memory/resource safety, concurrency, MIR, LLVM native codegen ve runtime bugün tamamlanmış ürün yeteneği olarak sunulmamaktadır.
+**Bu şema hem mevcut hem gelecekteki katmanları gösterir.** Capability checking accepted gelişim çizgisindedir; memory/resource safety kısmi implementasyon halinde aktif çalışma alanıdır. Concurrency, MIR, LLVM native codegen ve runtime bugün tamamlanmış ürün yeteneği olarak sunulmamaktadır.
 
 ## Katmanların görevi
 
@@ -456,55 +593,35 @@ Gerçek `derle / çalıştır` akışı, native backend ve runtime yeteneği olu
 
 ---
 
-# Sıradaki büyük compiler adımı
+# Aktif compiler sınırı
 
-## Traits · Bounds · Methods
+## Memory & Resource Safety
 
-Sıradaki planlanan ana semantic kapsam, behavior abstraction ve methods katmanıdır.
+Traits / bounds / methods, modules / imports / visibility, generalized effects ve capability checking artık “sıradaki” diye sunulacak gelecek adımlar değildir.
 
-Kabul edilmiş tasarım yönünde hedeflenen Türkçe yüzey:
+Aktif compiler frontier'ı **memory & resource safety** katmanıdır.
 
-```text
-davranış
-uygula
-öz
-```
-
-Planlanan V1 kapsamı:
-
-- static traits / behavior contracts
-- generic bounds
-- multiple bounds
-- inherent implementations
-- trait implementations
-- immutable `öz` receiver
-- associated types
-- qualified associated-type projection
-- stable trait / method identity
-- static coherence rules
-- method effect integration
-- nominal / generic operator traits
-- indexed `Yinelenebilir` substrate
-
-Örnek generic-bound yönü:
+Canonical accepted C14 çizgisi bugün şunları kapsar:
 
 ```text
-T: A + B<X>
+Ownership Facts
+    ↓
+Move / Liveness
+    ↓
+Ephemeral Borrow Conflict
+    ↓
+Concrete Affine Fan-Out
+    ↓
+Exact Generic Instantiation Facts
+    ↓
+Hidden Copyability Requirement Facts
+    ↓
+Local Generic Hidden-Copyability Enforcement
 ```
 
-Bu immediate milestone içinde özellikle hedeflenmeyenler:
+4 Ekim 2026 tarihli TEMP entegrasyon çalışmaları bu temelin üzerine gerçek source-created resource akışını ve lexical/control-flow finalization composition'ını sınamaktadır.
 
-```text
-dynamic dispatch
-trait objects
-specialization
-default / generic methods
-where clauses
-ownership / borrow semantics
-iterator için syntax
-```
-
-`için`, gerçek iterable substrate oluşmadan compiler'a özel bir kestirme olarak eklenmemektedir.
+C14 tamamlanmadan concurrency, MIR veya native backend katmanları “başladı” diye sunulmaz.
 
 ---
 
@@ -543,7 +660,7 @@ bindings
 
 ## 2 — Abstraction & boundaries
 
-Sıradaki yön:
+Accepted gelişim çizgisi:
 
 ```text
 traits / bounds / methods
@@ -552,11 +669,13 @@ traits / bounds / methods
 → capability checking
 ```
 
-Package ekosisteminin bu temellerden önce compiler semantic'lerini değiştirmesine izin verilmemesi hedeflenir.
+Package ekosisteminin bu temelleri gizlice değiştirmesine izin verilmemesi hedeflenir.
 
-## 3 — Safety core
+## 3 — Safety core — aktif çalışma alanı
 
-Memory/resource modeli için önce ayrı design/research audit, ardından bounded semantic implementation adımları planlanmaktadır.
+Memory/resource safety için design audit kabul edilmiştir ve C14 bounded semantic implementation dilimleriyle aktif biçimde ilerlemektedir.
+
+Canonical accepted temel ownership classes, access modes, move/liveness, bounded borrow-conflict ve generic hidden-copyability enforcement katmanlarını içerir. 4 Ekim tarihli TEMP entegrasyon zinciri source-created resource ve deterministic finalization composition'ını sınamaktadır.
 
 Sonraki concurrency yönü:
 
@@ -699,7 +818,7 @@ TEDVİN bugün:
 - native executable pipeline'ı tamamlanmış değildir
 - LLVM backend'i hazır değildir
 - production desktop IDE binding'i hazır değildir
-- capability enforcement henüz uygulanmış değildir
+- capability checking accepted çizgidedir; ancak broader operational capability/runtime enforcement tamamlanmış değildir
 - memory/resource safety modelini bitmiş gibi sunmaz
 - concurrency safety modelini bitmiş gibi sunmaz
 
@@ -726,3 +845,8 @@ Compiler kaynak kodunun erişim ve dağıtım politikası daha sonra duyurulacak
 **Turkish coding surface · Real compiler semantics · Explicit effect direction · Native toolchain roadmap**
 
 *Active development · Experimental / pre-release*
+---
+
+الْحَمْدُ لِلَّهِ
+
+**Elhamdülillah.**
